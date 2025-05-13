@@ -3,6 +3,13 @@ import struct
 import os
 
 class GitIDX(GitBase):
+
+    class IDXPos:
+        def __init__(self,idx:"GitIDX", packbyteoffset:int, idxindex:int):
+            self.PackFileOffset:int = packbyteoffset
+            self.IDXItemIndex:int=  idxindex
+            self.IDXObject = idx
+
     def __init__(self, repopath:str,filename:str):
         super().__init__(repopath)
 
@@ -11,8 +18,13 @@ class GitIDX(GitBase):
             filename = os.path.join(self.packpath,filename)
 
         self.filename = filename
+        self.packfilename = self.filename.replace('.idx','.pack')
 
         f = open(filename, "rb")
+
+        packfilesize = os.stat(self.packfilename).st_size
+
+        self.rawoffsets:list[int] = [packfilesize]
 
         idxcontents = f.read()
 
@@ -61,8 +73,13 @@ class GitIDX(GitBase):
             if smoffseti >= 2**31:
                 LN = LN  + 1
                 isbig = True
-                smoffseti = LN - 1 
+                smoffseti = smoffseti & 0x7FFFFFFF
+            else:
+                self.rawoffsets.append(smoffseti)
 
+            if smoffseti > packfilesize:
+                raise ValueError("the packfile is smaller than the index")
+            
             self.smalloffsets.append((isbig,smoffseti))
 
         self.largeoffsets = []
@@ -72,18 +89,31 @@ class GitIDX(GitBase):
             lgoffseti = struct.unpack(">Q", lgoffset)[0]
 
             self.largeoffsets.append(lgoffseti)
+            self.rawoffsets.append(lgoffseti)
 
         idxsha1b, idxcontents = self.chomp(idxcontents,20)
         packsha1b, idxcontents = self.chomp(idxcontents,20)
 
         self.idxsha1  = idxsha1b.hex()
         self.packfilesha1 = packsha1b.hex()
+        self.rawoffsets.sort()
+        
 
-    def search(self,objectid):
+        
+    
+    def search(self,objectid:str):
+        """
+        Uses the retrieved hash and offset tables to locate the object in
+        the paired packfile if it exists.
 
+        Args:
+            objectid (_type_): _description_
+
+        Returns:
+            _type_: _description_
+        """
         searchstr = bytes.fromhex(objectid)
-        first = searchstr[0]
-
+    
         char1 = searchstr[0]
         
         n1 = self.fanoutable[char1-1] if char1 > 0 else 0
@@ -97,9 +127,9 @@ class GitIDX(GitBase):
                 
                 if offs[0]:
                     offi = self.largeoffsets[offi]
-                
-                return (self.filename, offi,i, self.idxsha1,self)
 
+                return GitIDX.IDXPos(self,offi,i)
+        
         return None
                 
 
@@ -123,7 +153,7 @@ class GitIDX(GitBase):
         return allidx
         
 
-def searchindexes(idxs:list[GitIDX], objects:list[str]) ->dict[str,tuple | None]:
+def searchindexes(idxs:list[GitIDX], objects:list[str]) ->dict[str,GitIDX.IDXPos]:
 
     res = {}
 
@@ -160,7 +190,23 @@ if __name__ == "__main__":
 
     res = searchindexes(idx,sampleobjectids)
 
+    
+    first = idx[0].search('cb4065f52fb21b7e19747addfe3d667e86d4efa1')
+    second = idx[0].search('916b2baf3373cee0973c239feacb49e1efc12e5e')
+
+    foundid = None
+
+    for id in idx:
+        if "pack-56838c0ac942884577e32965a9b1cf5937839143.idx" in id.filename:
+            foundid = id
+    
+    third = foundid.search('dd6ea70aabc9d5aa5352366b5f7ff55a37a2a444')
+
     print('Passed')
+
+    
+    
+    
 
 
 
