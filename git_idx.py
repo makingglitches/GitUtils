@@ -5,14 +5,15 @@ import os
 class GitIDX(GitBase):
 
     class IDXPos:
-        def __init__(self,idx:"GitIDX", packbyteoffset:int, idxindex:int):
+        def __init__(self,idx:"GitIDX", packbyteoffset:int, idxindex:int, size:int):
             self.PackFileOffset:int = packbyteoffset
+            self.Size:int = size
             self.IDXItemIndex:int=  idxindex
             self.IDXObject = idx
 
     def __init__(self, repopath:str,filename:str):
         super().__init__(repopath)
-
+        
         # just in case path is not absolute. which it should be.
         if not os.path.exists(filename):
             filename = os.path.join(self.packpath,filename)
@@ -97,10 +98,7 @@ class GitIDX(GitBase):
         self.idxsha1  = idxsha1b.hex()
         self.packfilesha1 = packsha1b.hex()
         self.rawoffsets.sort()
-        
-
-        
-    
+            
     def search(self,objectid:str):
         """
         Uses the retrieved hash and offset tables to locate the object in
@@ -128,7 +126,11 @@ class GitIDX(GitBase):
                 if offs[0]:
                     offi = self.largeoffsets[offi]
 
-                return GitIDX.IDXPos(self,offi,i)
+                i1 = self.rawoffsets.index(offi)
+                
+                size = self.rawoffsets[i1+1] - offi
+
+                return GitIDX.IDXPos(self,offi,i, size)
         
         return None
                 
@@ -173,11 +175,14 @@ def searchindexes(idxs:list[GitIDX], objects:list[str]) ->dict[str,GitIDX.IDXPos
 
 
 if __name__ == "__main__":
-
+    # an object pack file from placeflattener
     RepoPath = "~/Documents/placeflattener_git/"
     idx = "pack-c44714374edcabd029054f8c20bd601ba55ecfe9.idx"
+
+    # open the idx file  (git pack index file)
     g = GitIDX(RepoPath,idx)
 
+    # sample ids that exit 
     sampleobjectids = [
                         '021695a1775f22bab5cff36751e7eae5db49b9cf',
                         '113f49ca85e805debe7a33032aae7d5c9d3f1feb',
@@ -186,20 +191,25 @@ if __name__ == "__main__":
                         'ff4d8b40c2a64474660766046e16080c3786c794'
     ]
 
+    # load all idx files from repository
     idx:list[GitIDX] = GitIDX.FromDirectory(RepoPath)
 
+    # search indexes for all sample object ids.
     res = searchindexes(idx,sampleobjectids)
 
-    
+    # demonstrate specific idx searches
     first = idx[0].search('cb4065f52fb21b7e19747addfe3d667e86d4efa1')
     second = idx[0].search('916b2baf3373cee0973c239feacb49e1efc12e5e')
 
     foundid = None
 
+    # demonstrate that the idx was in fact loaded by the directory scan
     for id in idx:
         if "pack-56838c0ac942884577e32965a9b1cf5937839143.idx" in id.filename:
             foundid = id
+            break
     
+    #demonstarte the per idx search using fanout table and indexes.
     third = foundid.search('dd6ea70aabc9d5aa5352366b5f7ff55a37a2a444')
 
     print('Passed')
