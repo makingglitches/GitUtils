@@ -35,5 +35,4 @@ if __name__ == "__main__":
     RepoPath = "~/Documents/placeflattener_git/"
     g = GitBase(RepoPath)
 
-    # for project root readme.md
-    i = g.searchidx('454ecfb0052cf47a83473524a70a08644bb552a0')
+    

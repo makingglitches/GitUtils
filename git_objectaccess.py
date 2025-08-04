@@ -1,16 +1,12 @@
 from git_base import GitBase
 from git_idx import GitIDX
 from git_idx import searchindexes
+from git_const import GitLocationType
 from enum import Enum
 
-
-class LocationType(Enum):
-    OBJECT_PATH = 1
-    PACK_PATH = 2
-
 class GitObjectLocation:
-    def __init__(self, objectid:str, locationtype:LocationType, fslocation = None, idx:GitIDX.IDXPos=None ):
-        self.LocationType:LocationType = locationtype
+    def __init__(self, objectid:str, locationtype:GitLocationType, fslocation = None, idx:GitIDX.IDXPos=None ):
+        self.LocationType:GitLocationType = locationtype
         self.FileLocation:str = fslocation
         self.IDXLocation:GitIDX.IDXPos = idx
 
@@ -40,14 +36,14 @@ class GitObjectAccess(GitBase):
 
         if fname is None:
             res = searchindexes(self.IDX, [objectid])
-            if len(res) > 0:
+            if res[objectid] is not None:
                 objectloc = GitObjectLocation(objectid, 
-                                             LocationType.PACK_PATH,
+                                             GitLocationType.PACK_PATH,
                                               None,
                                               res[objectid])
         else:
             objectloc = GitObjectLocation(objectid, 
-                              LocationType.OBJECT_PATH,
+                              GitLocationType.OBJECT_PATH,
                               fname)
         
         return (objectloc is not None, objectloc )
@@ -63,7 +59,10 @@ if __name__=="__main__":
                         '113f49ca85e805debe7a33032aae7d5c9d3f1feb',
                         '86114c801184bcc472ec296ede8d49c3786a19f0',
                         '68a72d69a209f65e3ac10f4cc16706e180ed9019',
-                        'ff4d8b40c2a64474660766046e16080c3786c794'
+                        'ff4d8b40c2a64474660766046e16080c3786c794',
+                        '13f23353a5c94e1d2f388450682b960ad83b431a',
+                        '38a5baa4839542388f3180b01ab65a7a7ae99f34',
+                        '38a5baa4839542388f3180b01ab65a7a7ae99ff4'  # not found.
     ]
 
     for obj in sampleobjectids:
@@ -74,7 +73,7 @@ if __name__=="__main__":
         if o[0]:
             print( f"Location Type: {o[1].LocationType.name}")
             
-            if o[1].LocationType == LocationType.OBJECT_PATH:
+            if o[1].LocationType == GitLocationType.OBJECT_PATH:
                 print(f"Path: {o[1].FileLocation}")
             else:
                 print(f"Packfile: {o[1].IDXLocation.IDXObject.packfilename}")
