@@ -1,19 +1,24 @@
 from git_base import GitBase
 from git_idx import GitIDX
 from git_const import GitObjectType
+import os
+import zlib
+
+import tempfile
+
 import subprocess
 
 class PackEntryHeader:
     
-    def __init__(self,objectid:str, packfile:"GitPack", objectheaderbytes:bytes, position:GitIDX.IDXPos):
+    def __init__(self,objectid:str, packfile:"GitPack", objectheaderbytes:bytes, position:GitIDX.IDXPos, bytespos:int):
 
         self.PackPosition:GitIDX.IDXPos = position
         self.PackFile:"GitPack" = packfile
         self.ObjectId = objectid
         self.UncompressedSize = 0
-        self.Type:GitObjectType = GitObjectType((objectheaderbytes[0] >> 4) & 0b111)        
-        
+        self.Type:GitObjectType = GitObjectType((objectheaderbytes[0] >> 4) & 0b111)                
         self.UncompressedSize = objectheaderbytes[0] & 0b00001111
+        self.BytesStart:int = bytespos        
 
         shift = 4
 
@@ -23,19 +28,47 @@ class PackEntryHeader:
             self.UncompressedSize |= (bits << shift)
             shift += 7
 
-        self.CompressedSize = position.Size
+        self.PackRecordPayloadSize:int = position.Size
 
-    
+        self.HasDeltaHeader:bool = self.Type in [GitObjectType.OFS_DELTA, GitObjectType.REF_DELTA]
+        self.BackwardOffset:int = 0
+        self.BaseObjectId:bytes = None
+
+        self.CompressedSize = self.PackRecordPayloadSize
+
+    def AdjustForDelta(self,b:bytes):
+        if self.HasDeltaHeader:
+            if self.Type == GitObjectType.REF_DELTA:
+                self.BytesStart+=20
+                self.AdjustForDelta = b
+                self.CompressedSize -= 20
+            elif self.Type == GitObjectType.OFS_DELTA:
+                shift = 0
+                self.BytesStart += len(b)
+                self.CompressedSize -=len(b)
+                
+                for i in range(0,len(b)):
+                    # make room for the next 7 bits            
+                    bits = b[i] & 0b01111111
+                    self.BackwardOffset |= (bits << shift)
+                    shift += 7
+
+                
+
 
 
 class GitPack(GitBase):
     def __init__(self, idx:GitIDX):
         super().__init__(idx.toplevelpath)
         self.idx = idx
-        self.objecttypes: dict[str,str] = {}
-    
+        self.ObjectTypes: dict[str, tuple[bool,PackEntryHeader] ] = {}
+        self.GetObjectTypes()    
 
     def GetObjectHeader(self,objectid:str)->tuple[bool,PackEntryHeader | None]:
+
+        # this should never be untrue once GetObjectTypes is run.
+        if objectid in self.ObjectTypes:
+            return self.ObjectTypes[objectid]
 
         pos = self.idx.search(objectid)
 
@@ -45,12 +78,13 @@ class GitPack(GitBase):
         f = open(self.idx.packfilename,'rb')
         
         f.seek(pos.PackFileOffset)
-        
-        hbytes:list[int] =[]
-
+                
+        hbytes:list[int] =[]        
         hb = f.read(1)
 
         hbytes.append(hb[0])
+
+        bytespos = pos.PackFileOffset  + 1 
 
         # in packfile object entry header 
         # the object header before the actual object begins
@@ -60,17 +94,78 @@ class GitPack(GitBase):
             hb = f.read(1)
             hbytes.append(hb[0])
 
-        f.close()
+            bytespos += 1
+        
+        entryheader = PackEntryHeader(objectid, self, hbytes, pos, bytespos)
+                        
+        if entryheader.HasDeltaHeader:
+            if entryheader.Type == GitObjectType.REF_DELTA:
+                entryheader.AdjustForDelta(f.read(20))
+            elif entryheader.Type == GitObjectType.OFS_DELTA:
+                hb = f.read(1)
+                deltab = hb
 
-        entryheader = PackEntryHeader(objectid, self, hbytes, pos)
+                while hb[0] & 128 == 128:
+                    hb = f.read(1)
+                    deltab += hb
+                
+                entryheader.AdjustForDelta(deltab)
+
 
         return (True, entryheader)
                 
     def GetObjectTypes(self):
         for i in self.idx.objectids:
-            self.objecttypes[i] = self.GetObjectType(i)
+            self.ObjectTypes[i] = self.GetObjectHeader(i)
+    
+    def GetObjectBytes(self, objectid:bytes | str)->str:
 
+        if type(objectid) == str:
+            objectid = bytes.fromhex(objectid)
 
+        if objectid in self.ObjectTypes:
+            
+            entry = self.ObjectTypes[objectid]
+
+            p:PackEntryHeader = entry[1]
+
+            if not entry[0]:
+                raise IndexError("Object ID: ["+objectid+"] was marked as not found on scan, but it existed in the IDX File.")
+
+            f = open (self.idx.packfilename, "rb")
+
+            f.seek(p.BytesStart)
+
+            bfilename = tempfile.mktemp()
+
+            fout = open(bfilename, 'wb')
+
+            totalread = 0
+
+            MB = 1024*1024
+
+            # read 1 meg
+            b = f.read(MB if p.PackRecordPayloadSize - totalread > MB else p.PackRecordPayloadSize)
+            zflate = zlib.decompressobj()
+            
+            while len(b) > 0:
+                totalread += len(b)
+                try:
+                    fout.write(zflate.decompress(b))                
+                except Exception as e:
+                    print('DECOMPRESSION ERROR')
+                    print(e)
+                    break
+
+                b = f.read(MB if p.PackRecordPayloadSize - totalread > MB else p.PackRecordPayloadSize-totalread)
+
+            fout.close()
+            f.close()
+
+            return bfilename
+        else:
+            raise IndexError("Object Id ["+objectid+ "] does not exist in the IDX")
+                
 if __name__=="__main__":
 
     
@@ -121,7 +216,19 @@ if __name__=="__main__":
         if objheader[0]:
             print (f"Type: {objheader[1].Type.name}")
             print (f"Uncompressed Size: {objheader[1].UncompressedSize}")
-            print (f"Compressed Size: {objheader[1].CompressedSize}")
+            print (f"Compressed Size: {objheader[1].PackRecordPayloadSize}")
+
+            fname = g.GetObjectBytes(s)
+
+            sr = os.stat(fname)
+
+            os.remove(fname)
+
+            if sr.st_size == objheader[1].UncompressedSize:
+                print("Matched.")
+            else:
+                print("Failed.")            
+
         else:
             print(f"Not Found.")
     

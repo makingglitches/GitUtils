@@ -99,18 +99,18 @@ class GitIDX(GitBase):
         self.packfilesha1 = packsha1b.hex()
         self.rawoffsets.sort()
             
-    def search(self,objectid:str):
+    def search(self,objectid:bytes | str):
         """
         Uses the retrieved hash and offset tables to locate the object in
         the paired packfile if it exists.
 
         Args:
-            objectid (_type_): _description_
+            objectid (bytes | str): object id either in bytes or a hex string
 
         Returns:
             _type_: _description_
         """
-        searchstr = bytes.fromhex(objectid)
+        searchstr =   objectid if type(objectid) == bytes else bytes.fromhex(objectid)
     
         char1 = searchstr[0]
         
