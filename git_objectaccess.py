@@ -2,7 +2,13 @@ from git_base import GitBase
 from git_idx import GitIDX
 from git_idx import searchindexes
 from git_const import GitLocationType
+from git_pack import GitPack
+from git_typer import GitLooseObjectTyper
+from git_const import GitObjectType
+import json
 from enum import Enum
+import tempfile
+import zlib
 
 class GitObjectLocation:
     def __init__(self, objectid:str, locationtype:GitLocationType, fslocation = None, idx:GitIDX.IDXPos=None ):
@@ -17,7 +23,47 @@ class GitObjectAccess(GitBase):
 
         # loads pack indexes.
         self.IDX = GitIDX.FromDirectory(repopath)
+        self.Packs:dict[GitIDX,GitPack] = {}
 
+        # gets the types of all loose objects.
+        res = GitLooseObjectTyper.FromRepoPath(repopath)
+        self.LooseObjects:dict[str,GitObjectType] = res[0]
+        self.LooseObjectsByType:dict[GitObjectType,list[str]] = res[1]
+
+        for idx in self.IDX:
+            self.Packs[idx] = GitPack(idx)
+
+    def GetObjectBytes(self, objectid:str)->tuple[GitObjectLocation,str]| None:
+
+        res =  self.findObject(objectid)
+
+        if res[0]:
+            if res[1].LocationType == GitLocationType.OBJECT_PATH:
+                
+                f = open(res[1].FileLocation, "rb")
+                bfilename = tempfile.NamedTemporaryFile().name
+
+                fout = open(bfilename, 'wb')
+                                
+                g = zlib.decompressobj()                    
+
+                buff = f.read(1024*1024)
+
+                while len(buff) > 0:
+                    fout.write( g.decompress(buff))
+                    buff = f.read(1024)
+
+                f.close()
+                fout.close()
+
+                return (res[1],bfilename)
+            else:
+               pack = self.Packs[res[1].IDXLocation.IDXObject]
+               
+               return (res[1], pack.GetObjectBytes(objectid))
+            
+        return None
+               
     
     def findObject(self,objectid:str)->tuple[bool,GitObjectLocation]:
         """
@@ -62,8 +108,24 @@ if __name__=="__main__":
                         'ff4d8b40c2a64474660766046e16080c3786c794',
                         '13f23353a5c94e1d2f388450682b960ad83b431a',
                         '38a5baa4839542388f3180b01ab65a7a7ae99f34',
+                         # some packfile ids if none were included
                         '38a5baa4839542388f3180b01ab65a7a7ae99ff4'  # not found.
+                        'cb4065f52fb21b7e19747addfe3d667e86d4efa1', #not found
+                        '916b2baf3373cee0973c239feacb49e1efc12e5e', #not found
+                        '7250242e021052ad2c19291cdc4867dfdab4dd40', #commit
+                        '4fa9a4edda2d18033998b987966fe144ecb5a5b8', #tree
+                        '2b84d61d7a0f898357968d8dcb7b40ec70eb8567', #blob
+                        '2d09cd626d5f01af3712b422e8360ba4ec91974c', #'commit', '249', '167', '690']
+                        '770c4c9ca726165b8e6bf4403be8ccbc7d1211d0', # 'commit', '245', '162', '5057']
+                        'f0959ce81dbfb3f96bcdb3d431dcf897ab5d091a', # 'tree', '', '', '63', '96', '24143'
+                        'd6933a473d74f703d13949b4ff32cc165cf78e47',# 'blob', '', '', '131', '120', '220274']
+                        '8cb1461e74993cd070bc07ac6039465a35280dcb',# 'blob', '', '', '130', '119', '220394']
+                        '9350131188adda2a9e061299870c167f37674257',# REFS_DELTA
+                        '27bbb9f4b546ce81a5bf4050c8f731a81d4700c2',# OFS_DELTA
     ]
+
+
+    tempfiles = []
 
     for obj in sampleobjectids:
         o = gio.findObject(obj)
@@ -79,8 +141,16 @@ if __name__=="__main__":
                 print(f"Packfile: {o[1].IDXLocation.IDXObject.packfilename}")
                 print(f"Offset: {o[1].IDXLocation.PackFileOffset}")
                 print(f"Size: {o[1].IDXLocation.Size}")
+                print(f"ByteOffset: {o[1].IDXLocation}")
+
+            byteres = gio.GetObjectBytes(obj)
+
+            tempfiles.append(byteres)
+              
         else:
             print("Not Found")
         
-    
+    for t in tempfiles:
+        print(t[0])
+        print(t[1])
     

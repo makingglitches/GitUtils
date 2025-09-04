@@ -3,22 +3,27 @@ from git_idx import GitIDX
 from git_const import GitObjectType
 import os
 import zlib
+import json
 
 import tempfile
 
 import subprocess
 
+
+LFS_STRING='version https://git-lfs.github.com/spec/v1'.encode()
+
 class PackEntryHeader:
     
-    def __init__(self,objectid:str, packfile:"GitPack", objectheaderbytes:bytes, position:GitIDX.IDXPos, bytespos:int):
-
+    def __init__(self,objectid:str, packfile:"GitPack", objectheaderbytes:bytes, position:GitIDX.IDXPos, bytespos:int, noPop=False):
+                
         self.PackPosition:GitIDX.IDXPos = position
         self.PackFile:"GitPack" = packfile
         self.ObjectId = objectid
         self.UncompressedSize = 0
         self.Type:GitObjectType = GitObjectType((objectheaderbytes[0] >> 4) & 0b111)                
         self.UncompressedSize = objectheaderbytes[0] & 0b00001111
-        self.BytesStart:int = bytespos        
+        self.BytesStart:int = bytespos   
+        self.LFS_Ref = False     
 
         shift = 4
 
@@ -43,6 +48,7 @@ class PackEntryHeader:
                 self.AdjustForDelta = b
                 self.CompressedSize -= 20
             elif self.Type == GitObjectType.OFS_DELTA:
+                
                 shift = 0
                 self.BytesStart += len(b)
                 self.CompressedSize -=len(b)
@@ -53,15 +59,33 @@ class PackEntryHeader:
                     self.BackwardOffset |= (bits << shift)
                     shift += 7
 
-                
 
+SAVE_PATH =  os.path.join( os.path.dirname(__file__),'CachedTypes')
 
+if not os.path.exists(SAVE_PATH):
+    os.mkdir(SAVE_PATH)
 
 class GitPack(GitBase):
-    def __init__(self, idx:GitIDX):
+
+    @staticmethod
+    def idxSaveFile(idx:GitIDX):
+        return os.path.basename(idx.toplevelpath) + "."+ os.path.basename(idx.packfilename)+".json"
+
+    def __init__(self, idx:GitIDX, refresh=False):
         super().__init__(idx.toplevelpath)
         self.idx = idx
         self.ObjectTypes: dict[str, tuple[bool,PackEntryHeader] ] = {}
+        self.RepoSaveFile = os.path.join(SAVE_PATH, GitPack.idxSaveFile(idx))
+              
+        if os.path.exists( self.RepoSaveFile):
+
+            if refresh:
+                os.remove(self.RepoSaveFile)
+            else:
+                f = open(self.RepoSaveFile, 'r')
+                self.ObjectTypes= json.load(f)                
+                f.close()    
+
         self.GetObjectTypes()    
 
     def GetObjectHeader(self,objectid:str)->tuple[bool,PackEntryHeader | None]:
@@ -111,26 +135,38 @@ class GitPack(GitBase):
                 
                 entryheader.AdjustForDelta(deltab)
 
+        f.close()
 
+        res = self.GetObjectBytes(objectid,True, entryheader)
+        entryheader.LFS_Ref = res[1]
         return (True, entryheader)
                 
     def GetObjectTypes(self):
         for i in self.idx.objectids:
-            self.ObjectTypes[i] = self.GetObjectHeader(i)
+            if not i in self.ObjectTypes:
+                self.ObjectTypes[i] = self.GetObjectHeader(i)
+        
+        f = open(self.RepoSaveFile, 'w')
+        json.dump(self.ObjectTypes, f)
+        f.close()
     
-    def GetObjectBytes(self, objectid:bytes | str)->str:
+    def GetObjectBytes(self, objectid:bytes | str, checklfs=False, pentry:PackEntryHeader = None)->str:
 
         if type(objectid) == str:
             objectid = bytes.fromhex(objectid)
 
-        if objectid in self.ObjectTypes:
+        if objectid in self.ObjectTypes or pentry is not None:
             
-            entry = self.ObjectTypes[objectid]
+            if objectid in self.ObjectTypes:
+                entry = self.ObjectTypes[objectid]
+                
+                p:PackEntryHeader = entry[1]
 
-            p:PackEntryHeader = entry[1]
+                if not entry[0]:
+                    raise IndexError("Object ID: ["+bytes.hex( objectid)+"] was marked as not found on scan, but it existed in the IDX File.")
 
-            if not entry[0]:
-                raise IndexError("Object ID: ["+objectid+"] was marked as not found on scan, but it existed in the IDX File.")
+            else:
+                p:PackEntryHeader = pentry
 
             f = open (self.idx.packfilename, "rb")
 
@@ -141,17 +177,36 @@ class GitPack(GitBase):
             fout = open(bfilename, 'wb')
 
             totalread = 0
+            totalout = 0
 
             MB = 1024*1024
 
             # read 1 meg
             b = f.read(MB if p.PackRecordPayloadSize - totalread > MB else p.PackRecordPayloadSize)
             zflate = zlib.decompressobj()
-            
+
+            lfs = b''    
+            is_lfs = False        
+
             while len(b) > 0:
-                totalread += len(b)
+                totalread += len(b)                
                 try:
-                    fout.write(zflate.decompress(b))                
+                    buff = zflate.decompress(b)
+                    totalout+=len(buff)
+
+                    # CHECK FOR LFS
+                    if totalout >= len(LFS_STRING):
+                        lfs += buff
+                        is_lfs = lfs.startswith(LFS_STRING)
+                        if checklfs:
+                            f.close()
+                            fout.close()
+                            os.remove(bfilename)
+                            return (None,is_lfs)
+                    else:
+                        lfs+=buff
+
+                    fout.write(buff)                
                 except Exception as e:
                     print('DECOMPRESSION ERROR')
                     print(e)
@@ -162,9 +217,9 @@ class GitPack(GitBase):
             fout.close()
             f.close()
 
-            return bfilename
+            return (bfilename,is_lfs)
         else:
-            raise IndexError("Object Id ["+objectid+ "] does not exist in the IDX")
+            raise IndexError("Object Id ["+ bytes.hex( objectid)+ "] does not exist in the IDX")
                 
 if __name__=="__main__":
 
@@ -201,8 +256,8 @@ if __name__=="__main__":
                         'f0959ce81dbfb3f96bcdb3d431dcf897ab5d091a', # 'tree', '', '', '63', '96', '24143'
                         'd6933a473d74f703d13949b4ff32cc165cf78e47',# 'blob', '', '', '131', '120', '220274']
                         '8cb1461e74993cd070bc07ac6039465a35280dcb',# 'blob', '', '', '130', '119', '220394']
-                        '9350131188adda2a9e061299870c167f37674257',# 'tree', '', '', '5', '34', '220001', '1', '551ffb9620fee0146d261dc5114fd003a5db86ce']
-                        '27bbb9f4b546ce81a5bf4050c8f731a81d4700c2',# 'tree', '', '', '97', '113', '230271', '1', '47a4c01e3deaeba370f0a84c2eec7ad754532509']
+                        '9350131188adda2a9e061299870c167f37674257',# REFS_DELTA
+                        '27bbb9f4b546ce81a5bf4050c8f731a81d4700c2',# OFS_DELTA
     ]     
 
     g = GitPack(idx)   
@@ -217,10 +272,15 @@ if __name__=="__main__":
             print (f"Type: {objheader[1].Type.name}")
             print (f"Uncompressed Size: {objheader[1].UncompressedSize}")
             print (f"Compressed Size: {objheader[1].PackRecordPayloadSize}")
+            print (f'Contains LFS Reference Object: {objheader[1].LFS_Ref}')
 
-            fname = g.GetObjectBytes(s)
+            fname = g.GetObjectBytes(s)[0]
 
             sr = os.stat(fname)
+            
+            if sr.st_size < 1024*1024:
+                with open(fname,'rb') as f:
+                    print(f.read())
 
             os.remove(fname)
 

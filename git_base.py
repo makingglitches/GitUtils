@@ -14,6 +14,20 @@ class GitBase:
         objdir = os.path.join(self.objectspath,objectid[:2],objectid[2:])
         return objdir
     
+    @staticmethod
+    def getVarInt( b:bytes, initialLeftShift=0)->tuple[int,int]:
+        shift = initialLeftShift
+
+        value = 0
+
+        for i in range(0,len(b)):
+                # make room for the next 7 bits            
+                bits = b[i] & 0b01111111
+                value |= (bits << shift)
+                shift += 7
+
+        return value
+
     def chomp(self, buffer:bytes, len:int)->tuple[bytes,bytes]:
         piece = buffer[:len]
         buffer = buffer[len:]
