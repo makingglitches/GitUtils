@@ -10,6 +10,17 @@ class GitIDX(GitBase):
             self.Size:int = size
             self.IDXItemIndex:int=  idxindex
             self.IDXObject = idx
+        
+        def Serialize(self):            
+            return {
+                'PackFileOffset': self.PackFileOffset,
+                'Size':self.Size,
+                'IDXItemIndex':self.IDXItemIndex
+            }
+
+        @staticmethod
+        def Deserialize(idx:"GitIDX", d:dict):
+            return GitIDX.IDXPos(idx,d['PackFileOffset'], d['IDXItemIndex'], d['Size'])
 
     def __init__(self, repopath:str,filename:str):
         super().__init__(repopath)

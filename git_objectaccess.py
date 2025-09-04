@@ -30,9 +30,19 @@ class GitObjectAccess(GitBase):
         self.LooseObjects:dict[str,GitObjectType] = res[0]
         self.LooseObjectsByType:dict[GitObjectType,list[str]] = res[1]
 
+        self.PackObjects:dict[str,tuple[GitPack,GitObjectType]] = {}
+
         for idx in self.IDX:
             self.Packs[idx] = GitPack(idx)
+                        
 
+    # def GetObject(self, objectid:str):
+        
+    #     objectloc = self.findObject(objectid)
+
+    #     if objectloc[0]:
+    #         filename = self.GetObjectBytes(objectid)
+            
     def GetObjectBytes(self, objectid:str)->tuple[GitObjectLocation,str]| None:
 
         res =  self.findObject(objectid)
@@ -124,12 +134,14 @@ if __name__=="__main__":
                         '27bbb9f4b546ce81a5bf4050c8f731a81d4700c2',# OFS_DELTA
     ]
 
+    # LIMIT TO 5 MB BYTES
+    LIMIT_BYTE_TEST=1024*1024*5
 
     tempfiles = []
 
     for obj in sampleobjectids:
         o = gio.findObject(obj)
-
+        print("<=================================>")
         print(f"Object Id: {obj}")
 
         if o[0]:
@@ -138,18 +150,31 @@ if __name__=="__main__":
             if o[1].LocationType == GitLocationType.OBJECT_PATH:
                 print(f"Path: {o[1].FileLocation}")
             else:
-                print(f"Packfile: {o[1].IDXLocation.IDXObject.packfilename}")
-                print(f"Offset: {o[1].IDXLocation.PackFileOffset}")
-                print(f"Size: {o[1].IDXLocation.Size}")
-                print(f"ByteOffset: {o[1].IDXLocation}")
+                pos = o[1].IDXLocation
+                print(f"Packfile: {pos.IDXObject.packfilename}")
+                print(f"Offset: {pos.PackFileOffset}")
+                print(f"Size: {pos.Size}")
+                print(f"ByteOffset: {pos.PackFileOffset}")
 
-            byteres = gio.GetObjectBytes(obj)
+                p = gio.Packs[pos.IDXObject]
+                header = p.ObjectTypes[bytes.fromhex(obj)][1]
 
-            tempfiles.append(byteres)
+                print(f'PayloadSize: {header.PackRecordPayloadSize}')
+                print(f'Compressed Size: {header.CompressedSize}')
+                print(f'Uncompressed Size: {header.UncompressedSize}')
+                print(f'Type: {header.Type}')
+
+            if LIMIT_BYTE_TEST >= header.PackRecordPayloadSize:                            
+                byteres = gio.GetObjectBytes(obj)
+                tempfiles.append((obj,byteres[1]))
+            else:
+                print("Skipping Byte Read, Too Large.")
               
         else:
             print("Not Found")
-        
+    
+    print()
+    
     for t in tempfiles:
         print(t[0])
         print(t[1])

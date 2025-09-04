@@ -14,32 +14,91 @@ LFS_STRING='version https://git-lfs.github.com/spec/v1'.encode()
 
 class PackEntryHeader:
     
-    def __init__(self,objectid:str, packfile:"GitPack", objectheaderbytes:bytes, position:GitIDX.IDXPos, bytespos:int, noPop=False):
-                
-        self.PackPosition:GitIDX.IDXPos = position
-        self.PackFile:"GitPack" = packfile
-        self.ObjectId = objectid
-        self.UncompressedSize = 0
-        self.Type:GitObjectType = GitObjectType((objectheaderbytes[0] >> 4) & 0b111)                
-        self.UncompressedSize = objectheaderbytes[0] & 0b00001111
-        self.BytesStart:int = bytespos   
-        self.LFS_Ref = False     
+    def __init__(self):
+        # this was an example of rigid thinking on my part
+        # I was used to C#
+        # another person replicated my work on some python project or another
+        # and see I would stubbornly just set different modes, because I like constructor overloads
+        # they just created a generic constructor and a static method :P 
+        # much better method for python classes.
+
+        self.PackPosition:GitIDX.IDXPos = None
+        self.PackFile:"GitPack" = None
+        self.ObjectId:str =  None        
+        self.Type:GitObjectType = None
+        self.UncompressedSize:int = 0
+        self.BytesStart:int = 0   
+        self.LFS_Ref:bool = False
+        self.PackRecordPayloadSize:int = 0
+        self.HasDeltaHeader:bool = False
+        self.BackwardOffset:int = 0
+        self.BaseObjectId:bytes = None
+        self.CompressedSize:int = 0
+     
+    def Serialize(self):
+        return {
+                'PackPosition':self.PackPosition.Serialize(),
+                'ObjectId': self.ObjectId.hex() if self.ObjectId else None,
+                'Type':self.Type.value if self.Type else None,
+                'BytesStart':self.BytesStart,
+                'LFS_Ref': self.LFS_Ref,
+                'PackRecordPayloadSize': self.PackRecordPayloadSize,
+                'HasDeltaHeader':self.HasDeltaHeader,
+                'BackwardOffset':self.BackwardOffset,
+                'BaseObjectId':self.BaseObjectId.hex() if self.BaseObjectId else None,
+                'CompressedSize':self.CompressedSize,
+                'UncompressedSize':self.UncompressedSize
+        }
+
+    @staticmethod
+    def Deserialize(pack:"GitPack", data:dict):
+        p = PackEntryHeader()        
+        p.PackPosition = GitIDX.IDXPos.Deserialize(pack.idx, data['PackPosition'])
+        p.ObjectId = bytes.fromhex( data['ObjectId']) if data['ObjectId'] else None        
+        p.Type = GitObjectType( data['Type']) if data['Type'] else None
+        p.BytesStart = data['BytesStart']
+        p.LFS_Ref = data['LFS_Ref']
+        p.PackRecordPayloadSize = data['PackRecordPayloadSize']
+        p.HasDeltaHeader = data['HasDeltaHeader']
+        p.BackwardOffset = data['BackwardOffset']
+        p.BaseObjectId = bytes.fromhex(data['BaseObjectId']) if data['BaseObjectId'] else None
+        p.CompressedSize = data['CompressedSize']
+        p.PackFile = pack
+        p.UncompressedSize = data['UncompressedSize']
+
+        return p
+
+    @staticmethod
+    def ForgeHeader(objectid:bytes | str, packfile:"GitPack", objectheaderbytes:bytes, position:GitIDX.IDXPos, bytespos:int)->"PackEntryHeader":
+
+        p:PackEntryHeader = PackEntryHeader()
+
+        p.PackPosition= position
+        p.PackFile= packfile
+        p.ObjectId = objectid if type(objectid) is bytes or objectid is None else bytes.fromhex(objectid)
+        p.UncompressedSize = 0
+        p.Type= GitObjectType((objectheaderbytes[0] >> 4) & 0b111)                
+        p.UncompressedSize = objectheaderbytes[0] & 0b00001111
+        p.BytesStart= bytespos   
+        p.LFS_Ref = False     
 
         shift = 4
 
         for i in range(1,len(objectheaderbytes)):
             # make room for the next 7 bits            
             bits = objectheaderbytes[i] & 0b01111111
-            self.UncompressedSize |= (bits << shift)
+            p.UncompressedSize |= (bits << shift)
             shift += 7
 
-        self.PackRecordPayloadSize:int = position.Size
+        p.PackRecordPayloadSize= position.Size
 
-        self.HasDeltaHeader:bool = self.Type in [GitObjectType.OFS_DELTA, GitObjectType.REF_DELTA]
-        self.BackwardOffset:int = 0
-        self.BaseObjectId:bytes = None
+        p.HasDeltaHeader= p.Type in [GitObjectType.OFS_DELTA, GitObjectType.REF_DELTA]
+        p.BackwardOffset= 0
+        p.BaseObjectId= None
 
-        self.CompressedSize = self.PackRecordPayloadSize
+        p.CompressedSize = p.PackRecordPayloadSize
+
+        return p
 
     def AdjustForDelta(self,b:bytes):
         if self.HasDeltaHeader:
@@ -69,21 +128,29 @@ class GitPack(GitBase):
 
     @staticmethod
     def idxSaveFile(idx:GitIDX):
-        return os.path.basename(idx.toplevelpath) + "."+ os.path.basename(idx.packfilename)+".json"
+        reponame = os.path.dirname(idx.toplevelpath).split('/')[-1:][0]
+        return reponame + "."+ os.path.basename(idx.packfilename)+".json"
 
     def __init__(self, idx:GitIDX, refresh=False):
         super().__init__(idx.toplevelpath)
         self.idx = idx
         self.ObjectTypes: dict[str, tuple[bool,PackEntryHeader] ] = {}
         self.RepoSaveFile = os.path.join(SAVE_PATH, GitPack.idxSaveFile(idx))
-              
+            
+        self.TempObjectTypes:dict[str,dict] = {}
+
         if os.path.exists( self.RepoSaveFile):
 
             if refresh:
                 os.remove(self.RepoSaveFile)
             else:
                 f = open(self.RepoSaveFile, 'r')
-                self.ObjectTypes= json.load(f)                
+                
+                try:
+                    self.TempObjectTypes= json.load(f)                
+                except:
+                    self.TempObjectTypes = {}
+
                 f.close()    
 
         self.GetObjectTypes()    
@@ -99,6 +166,7 @@ class GitPack(GitBase):
         if pos is None:        
             return (False,None)
         
+
         f = open(self.idx.packfilename,'rb')
         
         f.seek(pos.PackFileOffset)
@@ -120,7 +188,7 @@ class GitPack(GitBase):
 
             bytespos += 1
         
-        entryheader = PackEntryHeader(objectid, self, hbytes, pos, bytespos)
+        entryheader = PackEntryHeader.ForgeHeader(objectid, self, hbytes, pos, bytespos)
                         
         if entryheader.HasDeltaHeader:
             if entryheader.Type == GitObjectType.REF_DELTA:
@@ -142,12 +210,25 @@ class GitPack(GitBase):
         return (True, entryheader)
                 
     def GetObjectTypes(self):
-        for i in self.idx.objectids:
-            if not i in self.ObjectTypes:
-                self.ObjectTypes[i] = self.GetObjectHeader(i)
         
+        if len(self.TempObjectTypes.keys())==0:
+            print(f'Full reload of metadata for {self.idx.packfilename}')            
+            print(f'Object count: {len(self.idx.objectids)}')
+
+        for i in self.idx.objectids:   
+                hexi = i.hex()
+                if hexi in self.TempObjectTypes:
+                    self.ObjectTypes[i] = (True,PackEntryHeader.Deserialize(self, self.TempObjectTypes[hexi]))                         
+                else:
+                    # this is expensive.
+                    self.ObjectTypes[i] = self.GetObjectHeader(i)     
+                    if self.ObjectTypes[i][0]:                                   
+                        self.TempObjectTypes[hexi] =   self.ObjectTypes[i][1].Serialize() 
+        
+        # overwrite the last save
+        # if any restructuring occurred, this will wipe old objects and add new ones
         f = open(self.RepoSaveFile, 'w')
-        json.dump(self.ObjectTypes, f)
+        json.dump(self.TempObjectTypes, f)
         f.close()
     
     def GetObjectBytes(self, objectid:bytes | str, checklfs=False, pentry:PackEntryHeader = None)->str:
@@ -182,7 +263,8 @@ class GitPack(GitBase):
             MB = 1024*1024
 
             # read 1 meg
-            b = f.read(MB if p.PackRecordPayloadSize - totalread > MB else p.PackRecordPayloadSize)
+            b = f.read(MB if p.PackRecordPayloadSize > MB else p.PackRecordPayloadSize)
+            
             zflate = zlib.decompressobj()
 
             lfs = b''    
@@ -211,8 +293,9 @@ class GitPack(GitBase):
                     print('DECOMPRESSION ERROR')
                     print(e)
                     break
-
-                b = f.read(MB if p.PackRecordPayloadSize - totalread > MB else p.PackRecordPayloadSize-totalread)
+                # read only up to the expected size
+                remaining = p.PackRecordPayloadSize - totalread
+                b = f.read(MB if remaining > MB else remaining)
 
             fout.close()
             f.close()
@@ -273,7 +356,7 @@ if __name__=="__main__":
             print (f"Uncompressed Size: {objheader[1].UncompressedSize}")
             print (f"Compressed Size: {objheader[1].PackRecordPayloadSize}")
             print (f'Contains LFS Reference Object: {objheader[1].LFS_Ref}')
-
+            
             fname = g.GetObjectBytes(s)[0]
 
             sr = os.stat(fname)
