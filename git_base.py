@@ -1,5 +1,6 @@
 import os
 import struct
+from git_const import getHexId
 
 class GitBase:
 
@@ -10,7 +11,8 @@ class GitBase:
         self.logpath = os.path.join(self.gitpath,'logs')
         self.packpath = os.path.join(self.objectspath,'pack')
 
-    def getObjectFileName(self,objectid:str):
+    def getObjectFileName(self,objectid:str | bytes):
+        objectid = getHexId(objectid)
         objdir = os.path.join(self.objectspath,objectid[:2],objectid[2:])
         return objdir
     
@@ -34,7 +36,7 @@ class GitBase:
 
         return (piece, buffer)
       
-    def findObjectInPath(self,objectid:str):
+    def findObjectInPath(self,objectid:str | bytes):
         filename = self.getObjectFileName(objectid)
 
         if os.path.exists(filename):

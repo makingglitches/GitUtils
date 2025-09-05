@@ -1,5 +1,6 @@
 from git_base import GitBase
 from git_pack import GitPack
+from git_const import correctId
 
 
 class GitOFSDelta(GitBase):
@@ -7,5 +8,5 @@ class GitOFSDelta(GitBase):
         super().__init__(repopath)
 
         self.PackFile:GitPack = packfile
-        self.ObjectId = objectId
+        self.ObjectId = correctId( objectId)
         

@@ -1,4 +1,5 @@
 from git_base import GitBase
+from git_const import getHexId
 import zlib
 import git_head
 
@@ -11,10 +12,11 @@ class GitCommit(GitBase):
             self.TimeStamp = lines[2]
             self.GMTOffset = lines[3]
 
-    def __init__(self, repopath,objectid):
+    def __init__(self, repopath,objectid:str | bytes):
         super().__init__(repopath)
 
-        self.CommitPtr = objectid
+        self.CommitPtr =  getHexId( objectid)
+
         self.commitfilename = self.getObjectFileName(objectid)
         
         f = open(self.commitfilename,'rb')

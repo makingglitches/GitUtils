@@ -11,3 +11,16 @@ class GitObjectType(Enum):
 class GitLocationType(Enum):
     OBJECT_PATH = 1
     PACK_PATH = 2
+
+
+def getHexId(objectid: str | bytes | None) -> str | None:
+    if objectid is None:
+        return None
+    
+    return objectid if type(objectid)== str else objectid.hex()
+
+def correctId(objectid: str | bytes | None) -> bytes | None:
+    if objectid is None: 
+        return None
+    
+    return objectid if type(objectid) == bytes else bytes.fromhex(objectid)

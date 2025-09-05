@@ -1,6 +1,7 @@
 from git_base import GitBase
 from git_idx import GitIDX
 from git_const import GitObjectType
+from git_const import correctId
 import os
 import zlib
 import json
@@ -54,7 +55,7 @@ class PackEntryHeader:
     def Deserialize(pack:"GitPack", data:dict):
         p = PackEntryHeader()        
         p.PackPosition = GitIDX.IDXPos.Deserialize(pack.idx, data['PackPosition'])
-        p.ObjectId = bytes.fromhex( data['ObjectId']) if data['ObjectId'] else None        
+        p.ObjectId = correctId(data['ObjectId'])
         p.Type = GitObjectType( data['Type']) if data['Type'] else None
         p.BytesStart = data['BytesStart']
         p.LFS_Ref = data['LFS_Ref']
@@ -75,7 +76,7 @@ class PackEntryHeader:
 
         p.PackPosition= position
         p.PackFile= packfile
-        p.ObjectId = objectid if type(objectid) is bytes or objectid is None else bytes.fromhex(objectid)
+        p.ObjectId = correctId(objectid)
         p.UncompressedSize = 0
         p.Type= GitObjectType((objectheaderbytes[0] >> 4) & 0b111)                
         p.UncompressedSize = objectheaderbytes[0] & 0b00001111
@@ -233,8 +234,7 @@ class GitPack(GitBase):
     
     def GetObjectBytes(self, objectid:bytes | str, checklfs=False, pentry:PackEntryHeader = None)->str:
 
-        if type(objectid) == str:
-            objectid = bytes.fromhex(objectid)
+        objectid = correctId(objectid)
 
         if objectid in self.ObjectTypes or pentry is not None:
             

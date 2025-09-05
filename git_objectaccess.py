@@ -1,3 +1,4 @@
+from git_const import correctId
 from git_base import GitBase
 from git_idx import GitIDX
 from git_idx import searchindexes
@@ -5,6 +6,9 @@ from git_const import GitLocationType
 from git_pack import GitPack
 from git_typer import GitLooseObjectTyper
 from git_const import GitObjectType
+
+from git_blob import G
+
 import json
 from enum import Enum
 import tempfile
@@ -34,15 +38,7 @@ class GitObjectAccess(GitBase):
 
         for idx in self.IDX:
             self.Packs[idx] = GitPack(idx)
-                        
-
-    # def GetObject(self, objectid:str):
-        
-    #     objectloc = self.findObject(objectid)
-
-    #     if objectloc[0]:
-    #         filename = self.GetObjectBytes(objectid)
-            
+                                
     def GetObjectBytes(self, objectid:str)->tuple[GitObjectLocation,str]| None:
 
         res =  self.findObject(objectid)
@@ -73,8 +69,7 @@ class GitObjectAccess(GitBase):
                return (res[1], pack.GetObjectBytes(objectid))
             
         return None
-               
-    
+                 
     def findObject(self,objectid:str)->tuple[bool,GitObjectLocation]:
         """
         Finds object location either in packfile or object tree
@@ -97,6 +92,8 @@ class GitObjectAccess(GitBase):
                                              GitLocationType.PACK_PATH,
                                               None,
                                               res[objectid])
+
+                type = self.Packs[]
         else:
             objectloc = GitObjectLocation(objectid, 
                               GitLocationType.OBJECT_PATH,
@@ -157,7 +154,7 @@ if __name__=="__main__":
                 print(f"ByteOffset: {pos.PackFileOffset}")
 
                 p = gio.Packs[pos.IDXObject]
-                header = p.ObjectTypes[bytes.fromhex(obj)][1]
+                header = p.ObjectTypes[correctId(obj)][1]
 
                 print(f'PayloadSize: {header.PackRecordPayloadSize}')
                 print(f'Compressed Size: {header.CompressedSize}')

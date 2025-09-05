@@ -1,4 +1,5 @@
 from git_base import GitBase
+from git_const import correctId
 import struct
 import os
 
@@ -121,7 +122,7 @@ class GitIDX(GitBase):
         Returns:
             _type_: _description_
         """
-        searchstr =   objectid if type(objectid) == bytes else bytes.fromhex(objectid)
+        searchstr = correctId(objectid)
     
         char1 = searchstr[0]
         
