@@ -7,12 +7,14 @@ from git_pack import GitPack
 from git_typer import GitLooseObjectTyper
 from git_const import GitObjectType
 
-from git_blob import G
 
 import json
 from enum import Enum
 import tempfile
 import zlib
+
+GIORegistry:dict[str,"GitObjectAccess"] = {}
+
 
 class GitObjectLocation:
     def __init__(self, objectid:str, locationtype:GitLocationType, fslocation = None, idx:GitIDX.IDXPos=None ):
@@ -21,6 +23,25 @@ class GitObjectLocation:
         self.IDXLocation:GitIDX.IDXPos = idx
 
 class GitObjectAccess(GitBase):
+
+    @staticmethod
+    def FromPath(repopath:str)->"GitObjectAccess":
+        """
+        ONLY USE THIS METHOD TO CONSTRUCT INSTANCES OF THIS CLASS
+        THIS CLASS USES ALOT OF RAM THERE FOR EVERYTIME YOU OPEN A REPOSITORY
+        YOU WANT ONLY ONE INSTANCE OF THIS CLASS.
+
+        Args:
+            repopath (str): toplevel path of the repository
+
+        Returns:
+            GitObjectAccess: the object access instance for this repo
+        """        
+        if repopath in GIORegistry:
+            return GIORegistry[repopath]
+        else:
+            GIORegistry[repopath] = GitObjectAccess(repopath)
+            return GIORegistry[repopath]
 
     def __init__(self, repopath):
         super().__init__(repopath)
@@ -70,7 +91,7 @@ class GitObjectAccess(GitBase):
             
         return None
                  
-    def findObject(self,objectid:str)->tuple[bool,GitObjectLocation]:
+    def findObject(self,objectid:str)->tuple[bool,GitObjectLocation, GitObjectType]:
         """
         Finds object location either in packfile or object tree
 
@@ -78,34 +99,39 @@ class GitObjectAccess(GitBase):
             objectid (str): the object id
 
         Returns:
-            tuple[bool,GitIDX.IDXPos | str] | None: Returns None if not found otherwise
+            tuple[bool,GitIDX.IDXPos | str, GitObjectType] | None: Returns None if not found otherwise
             returns a tuple, if the first value is True its the filename of the object
             if False it is and IDXPos object
         """
         fname = self.findObjectInPath(objectid)
         objectloc = None
+        type = None
+        objectid = correctId(objectid)
 
         if fname is None:
             res = searchindexes(self.IDX, [objectid])
             if res[objectid] is not None:
+
                 objectloc = GitObjectLocation(objectid, 
                                              GitLocationType.PACK_PATH,
                                               None,
                                               res[objectid])
 
-                type = self.Packs[]
+                type = self.Packs[objectloc.IDXLocation.IDXObject].ObjectTypes[objectid][1].Type
         else:
             objectloc = GitObjectLocation(objectid, 
                               GitLocationType.OBJECT_PATH,
                               fname)
+            
+            type = self.LooseObjects[objectid]
         
-        return (objectloc is not None, objectloc )
+        return (objectloc is not None, objectloc, type )
 
 if __name__=="__main__":
     RepoPath = "~/Documents/placeflattener_git/"
 
     # provides a standardized search utility
-    gio = GitObjectAccess(RepoPath)
+    gio = GitObjectAccess.FromPath(RepoPath)
 
     sampleobjectids = [
                         '021695a1775f22bab5cff36751e7eae5db49b9cf',
@@ -142,7 +168,8 @@ if __name__=="__main__":
         print(f"Object Id: {obj}")
 
         if o[0]:
-            print( f"Location Type: {o[1].LocationType.name}")
+            print( f"Location Type: {o[1].LocationType.name}")            
+            print( f"Type: {o[2]}")
             
             if o[1].LocationType == GitLocationType.OBJECT_PATH:
                 print(f"Path: {o[1].FileLocation}")

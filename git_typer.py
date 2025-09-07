@@ -2,6 +2,7 @@ import zlib
 
 from git_head import GitHead
 from git_const import GitObjectType
+from git_const import correctId
 
 import os
 
@@ -42,7 +43,7 @@ class GitLooseObjectTyper:
 
             for f in files:
                 t = GitLooseObjectTyper.getType(os.path.join(root,f))[1]
-                objid = objprefix+f
+                objid = correctId( objprefix+f)
 
                 objtypes[objid] = t
 

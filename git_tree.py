@@ -16,7 +16,12 @@ class GitTree(GitBase):
     def __init__(self, repopath,treeid):
         super().__init__(repopath)
 
+            
         self.TreePtr = treeid
+        """
+        Contains the object Id of the tree.
+        """   
+
         self.TreeFileLocation = self.getObjectFileName(treeid)
 
         f = open(self.TreeFileLocation, 'rb')
