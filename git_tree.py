@@ -1,6 +1,10 @@
 from git_base import GitBase
 from git_head import GitHead
 from git_commit import GitCommit
+from git_objectaccess import GitObjectAccess
+from git_objectaccess import GitObjectLocation
+from git_const import GitObjectType
+from git_const import correctId
 
 import hashlib
 import zlib
@@ -8,41 +12,60 @@ import zlib
 class GitTree(GitBase):
 
     class GitTreeEntry:
-        def __init__(self,filemode:str,filename:str,sha1sum:str):
-            self.sha1sum = sha1sum
-            self.filemode = filemode
-            self.filename = filename
+        def __init__(self,filemode:str,filename:str,objectid:str | bytes, type:GitObjectType ):
+            self.sha1sum:bytes = correctId( objectid)
+            self.filemode:str = filemode
+            self.filename:str = filename
+            self.type:GitObjectType = type
     
-    def __init__(self, repopath,treeid):
+    def __init__(self, repopath,treeid:str | bytes):
         super().__init__(repopath)
 
             
-        self.TreePtr = treeid
+        self.TreePtr:bytes = correctId (treeid)
+
         """
         Contains the object Id of the tree.
         """   
 
-        self.TreeFileLocation = self.getObjectFileName(treeid)
+        gio = GitObjectAccess.FromPath(repopath)
 
-        f = open(self.TreeFileLocation, 'rb')
-        content = zlib.decompress( f.read())
+        res = gio.findObject(treeid)
+
+        
+        self.TreeFileLocation:GitObjectLocation = None if not res.Found else res.Location
+
+        # if this happens something is very very wrong.
+        if res.Type != GitObjectType.TREE:
+            emsg = f"Object {self.TreePtr.hex()} if not of the correct type\nFindObject returned {res.Type} "
+            raise TypeError(emsg)
+
+        # retrieve tree bytes.
+        bfilename:str = gio.GetObjectBytes(self.TreePtr)[1]
+
+        f = open(bfilename, 'rb')
+        content = f.read()
         f.close()
 
+        # decode tree object.
         i = content.index(bytes("\x00","utf-8"))
 
-        treeid = content[:i]
+        treenumber = content[:i]
+
+        # header contains 'tree {treenumber}'
+        self.TreeNumber:int = int(treenumber.replace(b'tree ', b'').decode())
+
         content = content[i+1:]
 
-        res = []
+        treeitems = []
 
         while len(content) > 0:
             node,content = self.decodenext(content)
-            res.append(node)            
+            treeitems.append(node)            
 
-        self.TreeItems = res        
+        self.TreeItems:list[GitTree.GitTreeEntry] = treeitems      
 
 
-    
     def decodenext(self,buffer:bytes):
         
         i= buffer.index(" ".encode())

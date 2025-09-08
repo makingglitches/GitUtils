@@ -1,0 +1,38 @@
+
+*** These modified files were found in JOE when it aborted on Sun Sep  7 23:51:49 2025
+*** JOE was aborted by UNIX signal 1
+
+*** File '.gitignore'
+__pycache__
+CachedTypes
+
+*** File '(Unnamed)'
+_openshot
+GetClip(
+subtitle
+source
+base
+llvm
+llvmlite
+llvm
+scope
+config
+
+*** File '(Unnamed)'
+totalAVLength.py
+totalAVLength.py
+totalAVLength
+totalAVLength
+test.py
+test.py
+test.py
+averrors.txt
+.gitignore
+.gitignore
+.gitignore
+
+*** File '* Startup Log *'
+Processing '/etc/joe/joerc'...
+Processing '/etc/joe/ftyperc'...
+Finished processing /etc/joe/ftyperc
+Finished processing /etc/joe/joerc

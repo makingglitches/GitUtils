@@ -22,6 +22,13 @@ class GitObjectLocation:
         self.FileLocation:str = fslocation
         self.IDXLocation:GitIDX.IDXPos = idx
 
+class FindObjectResult:
+    def __init__(self, found:bool, location:GitObjectLocation, type:GitObjectType):
+        self.Found:bool = found
+        self.Location:GitObjectLocation = location
+        self.Type:GitObjectType = type
+
+
 class GitObjectAccess(GitBase):
 
     @staticmethod
@@ -64,10 +71,10 @@ class GitObjectAccess(GitBase):
 
         res =  self.findObject(objectid)
 
-        if res[0]:
-            if res[1].LocationType == GitLocationType.OBJECT_PATH:
+        if res.Found:
+            if res.Location.LocationType == GitLocationType.OBJECT_PATH:
                 
-                f = open(res[1].FileLocation, "rb")
+                f = open(res.Location.FileLocation, "rb")
                 bfilename = tempfile.NamedTemporaryFile().name
 
                 fout = open(bfilename, 'wb')
@@ -83,15 +90,15 @@ class GitObjectAccess(GitBase):
                 f.close()
                 fout.close()
 
-                return (res[1],bfilename)
+                return (res.Location,bfilename)
             else:
-               pack = self.Packs[res[1].IDXLocation.IDXObject]
+               pack = self.Packs[res.Location.IDXLocation.IDXObject]
                
-               return (res[1], pack.GetObjectBytes(objectid))
+               return (res.Location, pack.GetObjectBytes(objectid))
             
         return None
                  
-    def findObject(self,objectid:str)->tuple[bool,GitObjectLocation, GitObjectType]:
+    def findObject(self,objectid:str)->FindObjectResult:
         """
         Finds object location either in packfile or object tree
 
@@ -125,7 +132,7 @@ class GitObjectAccess(GitBase):
             
             type = self.LooseObjects[objectid]
         
-        return (objectloc is not None, objectloc, type )
+        return  FindObjectResult( objectloc is not None, objectloc, type)
 
 if __name__=="__main__":
     RepoPath = "~/Documents/placeflattener_git/"
