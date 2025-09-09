@@ -1,4 +1,6 @@
 from git_base import GitBase
+from git_const import GitObjectType
+from git_objectaccess import GitObjectAccess
 from git_pack import GitPack
 
 
@@ -9,8 +11,12 @@ class GitRefsDelta(GitBase):
         self.PackFile:GitPack = pack
         self.ObjectId = objectId
 
-        fname = pack.GetObjectBytes(objectId)
+        gio = GitObjectAccess.FromPath(repopath)
+        res = gio.findObject(objectId)
+        # Std error code. 
+        self.ErrorOnTypeNot(objectId, res.Type, GitObjectType.REF_DELTA )
+              
 
-        f = open(fname, 'rb')
+        
         
         

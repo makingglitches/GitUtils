@@ -1,15 +1,11 @@
-from git_base import GitBase
 from git_head import GitHead
 from git_commit import GitCommit
-from git_objectaccess import GitObjectAccess
-from git_objectaccess import GitObjectLocation
 from git_const import GitObjectType
 from git_const import correctId
+from git_locationbase import GitLocationBase
 
-import hashlib
-import zlib
 
-class GitTree(GitBase):
+class GitTree(GitLocationBase):
 
     class GitTreeEntry:
         def __init__(self,filemode:str,filename:str,objectid:str | bytes, type:GitObjectType ):
@@ -18,35 +14,15 @@ class GitTree(GitBase):
             self.filename:str = filename
             self.type:GitObjectType = type
     
-    def __init__(self, repopath,treeid:str | bytes):
-        super().__init__(repopath)
+    def __init__(self, repopath,objectid:str | bytes):
+        super().__init__(repopath,objectid,GitObjectType.TREE)
 
-            
-        self.TreePtr:bytes = correctId (treeid)
-
-        """
-        Contains the object Id of the tree.
-        """   
-
-        gio = GitObjectAccess.FromPath(repopath)
-
-        res = gio.findObject(treeid)
-
+        if not self.ObjectLocation:
+            # continue with no other 
+            pass
         
-        self.TreeFileLocation:GitObjectLocation = None if not res.Found else res.Location
-
-        # if this happens something is very very wrong.
-        if res.Type != GitObjectType.TREE:
-            emsg = f"Object {self.TreePtr.hex()} if not of the correct type\nFindObject returned {res.Type} "
-            raise TypeError(emsg)
-
-        # retrieve tree bytes.
-        bfilename:str = gio.GetObjectBytes(self.TreePtr)[1]
-
-        f = open(bfilename, 'rb')
-        content = f.read()
-        f.close()
-
+        content = self.readall()
+        
         # decode tree object.
         i = content.index(bytes("\x00","utf-8"))
 

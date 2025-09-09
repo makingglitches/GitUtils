@@ -1,6 +1,7 @@
 from git_base import GitBase
+from git_objectaccess import GitObjectAccess
 from git_pack import GitPack
-from git_const import correctId
+from git_const import GitObjectType, correctId
 
 
 class GitOFSDelta(GitBase):
@@ -9,4 +10,10 @@ class GitOFSDelta(GitBase):
 
         self.PackFile:GitPack = packfile
         self.ObjectId = correctId( objectId)
+
+        gio = GitObjectAccess.FromPath(repopath)
+        res = gio.findObject(objectId)
+        # Std error code. 
+        self.ErrorOnTypeNot(objectId, res.Type, GitObjectType.OFS_DELTA)
+        
         

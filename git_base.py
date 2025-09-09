@@ -1,6 +1,7 @@
 import os
 import struct
 from git_const import getHexId
+from git_const import GitObjectType
 
 class _basestruct:
     def __init__(self, repopath:str):        
@@ -53,7 +54,12 @@ class GitBase:
         else:
             self._dictptr = _basestruct(repopath)
             GITBASE_REGISTRY[repopath] = self._dictptr  
-            
+               
+
+    def ErrorOnTypeNot(self,objectid:str|bytes, objtype:GitObjectType, expected:GitObjectType):
+        if objtype != expected:
+            s = f"ERROR !\n This should never happen !\nExpected {expected}\nFound:{objtype}\nFor Object {getHexId(objectid)}"
+            raise ValueError(s)
 
     def getObjectFileName(self,objectid:str | bytes)->str:
         """

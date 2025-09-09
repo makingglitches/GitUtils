@@ -20,7 +20,7 @@ class GitObjectLocation:
     def __init__(self, objectid:str, locationtype:GitLocationType, fslocation = None, idx:GitIDX.IDXPos=None ):
         self.LocationType:GitLocationType = locationtype
         self.FileLocation:str = fslocation
-        self.IDXLocation:GitIDX.IDXPos = idx
+        self.IDXLocation:GitIDX.IDXPos = idx        
 
 class FindObjectResult:
     def __init__(self, found:bool, location:GitObjectLocation, type:GitObjectType):

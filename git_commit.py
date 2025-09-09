@@ -1,9 +1,17 @@
 from git_base import GitBase
-from git_const import getHexId
+from git_const import getHexId, correctId,GitObjectType
 import zlib
 import git_head
 
-class GitCommit(GitBase):
+from git_locationbase import GitLocationBase
+
+
+from git_objectaccess import GitLocationType, \
+                             GitObjectLocation, \
+                             GitObjectAccess,\
+                             GitObjectType
+
+class GitCommit(GitLocationBase):
 
     class GitContribute:
         def __init__(self, lines:list[str]):
@@ -13,23 +21,17 @@ class GitCommit(GitBase):
             self.GMTOffset = lines[3]
 
     def __init__(self, repopath,objectid:str | bytes):
-        super().__init__(repopath)
+        super().__init__(repopath,objectid,GitObjectType.COMMIT)
 
-        self.CommitPtr =  getHexId( objectid)
+        contents = self.readall()
 
-        self.commitfilename = self.getObjectFileName(objectid)
+        i = contents.index(b"\x00")
         
-        f = open(self.commitfilename,'rb')
+        self.commitNumber = contents[0:i].replace(b"commit ",b"").decode()
 
-        contents = zlib.decompress(f.read()).decode()
+        self.contents =  contents[i+1:]
 
-        i = contents.index("\x00")
-        
-        self.commitNumber = contents[0:i].replace("commit ","")
-
-        self.contents = contents[i+1:]
-
-        lines = self.contents.splitlines()
+        lines = [s.decode() for s in  self.contents.splitlines()]
 
         self.commitTree = lines[0].replace('tree','').strip()
         self.parentCommitPtr = lines[1].replace('parent','' ).strip()
