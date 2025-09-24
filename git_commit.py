@@ -1,24 +1,41 @@
-from git_base import GitBase
-from git_const import getHexId, correctId,GitObjectType
-import zlib
+from git_const import GitObjectType
 import git_head
 
 from git_locationbase import GitLocationBase
 
-
-from git_objectaccess import GitLocationType, \
-                             GitObjectLocation, \
-                             GitObjectAccess,\
-                             GitObjectType
+from git_objectaccess import GitObjectType
 
 class GitCommit(GitLocationBase):
-
+    """
+    Represents a single commit object in the repo tree.
+    """
     class GitContribute:
+        """
+        Represents the user information about who committed or authored this commit
+        """
         def __init__(self, lines:list[str]):
+            """
+            Constructor. accepts lines read from the commit object.
+
+            Args:
+                lines (list[str]): from the commit file, provided by GitCommit
+            """
             self.User = lines[0]
+            """
+            Username of the contributor
+            """
             self.Email = lines[1].replace("<","").replace(">","")
+            """
+            Email of the contributor
+            """
             self.TimeStamp = lines[2]
+            """
+            Timestamp of the commit
+            """
             self.GMTOffset = lines[3]
+            """
+            GMT Offset of the time timestamp.
+            """
 
     def __init__(self, repopath,objectid:str | bytes):
         super().__init__(repopath,objectid,GitObjectType.COMMIT)
@@ -50,11 +67,19 @@ class GitCommit(GitLocationBase):
 
 
     @staticmethod
-    def FromHead(g:git_head.GitHead):
-        return GitCommit(g.toplevelpath,g.commitptr)
+    def FromHead(repopath:str )->"GitCommit":
+        """
+        Parses commit from repo's current HEAD
+
+        Args:
+            repopath (str): path to the top level directory of the local repository
+
+        Returns:
+            GitCommit: the HEAD commit
+        """
+        g = git_head.GitHead(repopath)
+        return GitCommit(g.RepoPath,g.commitptr)
     
-    def FromHeadandPtr(g:git_head.GitHead, objectid:str):
-        return GitCommit(g.toplevelpath,objectid)
 
 if __name__=="__main__":
     
@@ -64,11 +89,17 @@ if __name__=="__main__":
 
     c = GitCommit(repopath, g.commitptr)
 
-    c1 = GitCommit.FromHead(g)
+    c1 = GitCommit.FromHead(repopath)
 
     objid = g.lastLogCommits()['previouscommit']
 
-    c2 = GitCommit.FromHeadandPtr(g,objid)
+    c2:GitCommit = GitCommit(repopath,objid)
+    
+    print(c2.commitNumber)
+    print(c2.message)
+    print(c2.committer.Email)
+    print(c2.author.Email)
+    print(c2.commitTree)
 
     print("Test Passed")
 

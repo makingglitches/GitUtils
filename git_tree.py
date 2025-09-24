@@ -19,7 +19,7 @@ class GitTree(GitLocationBase):
 
         if not self.ObjectLocation:
             # continue with no other 
-            pass
+            return
         
         content = self.readall()
         

@@ -39,7 +39,7 @@ class GitBase:
     and directory pointers.
     """ 
 
-    toplevelpath:str = property( lambda self: self._dictptr.toplevelpath )   
+    RepoPath:str = property( lambda self: self._dictptr.toplevelpath )   
     gitpath:str = property(lambda self: self._dictptr.gitpath)
     objectspath:str = property(lambda self: self._dictptr.objectspath)
     logpath:str = property( lambda self: self._dictptr.logpath)
@@ -139,7 +139,7 @@ if __name__ == "__main__":
 
     bstr = b'\x81\xf5\xff\x82}'
 
-    o=     [ g.toplevelpath,    
+    o=     [ g.RepoPath,    
            g.gitpath, \
            g.logpath, \
            g.packpath, \

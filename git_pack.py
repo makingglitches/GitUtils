@@ -129,11 +129,11 @@ class GitPack(GitBase):
 
     @staticmethod
     def idxSaveFile(idx:GitIDX):
-        reponame = os.path.dirname(idx.toplevelpath).split('/')[-1:][0]
+        reponame = os.path.dirname(idx.RepoPath).split('/')[-1:][0]
         return reponame + "."+ os.path.basename(idx.packfilename)+".json"
 
     def __init__(self, idx:GitIDX, refresh=False):
-        super().__init__(idx.toplevelpath)
+        super().__init__(idx.RepoPath)
         self.idx = idx
         self.ObjectTypes: dict[str, tuple[bool,PackEntryHeader] ] = {}
         self.RepoSaveFile = os.path.join(SAVE_PATH, GitPack.idxSaveFile(idx))
