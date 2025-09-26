@@ -6,7 +6,7 @@ from git_const import GitLocationType
 from git_pack import GitPack
 from git_typer import GitLooseObjectTyper
 from git_const import GitObjectType
-
+from git_tags_branches import GitTagsReader
 
 import json
 from enum import Enum
@@ -53,6 +53,9 @@ class GitObjectAccess(GitBase):
     def __init__(self, repopath):
         super().__init__(repopath)
 
+        self.BranchInfo = GitTagsReader(repopath)
+           
+        
         # loads pack indexes.
         self.IDX = GitIDX.FromDirectory(repopath)
         self.Packs:dict[GitIDX,GitPack] = {}

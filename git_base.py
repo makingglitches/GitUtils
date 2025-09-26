@@ -30,6 +30,19 @@ class _basestruct:
           Location of the packfiles.s
         """  
 
+        self.loosetagspath:str = os.path.join(self.gitpath, 'refs','tags')  
+        """
+        Location where loose tags not consolidated by `git gc` have been stored.
+        One commit object id per file
+        """
+
+        self.packedtagsfile:str = os.path.join(self.gitpath,'packed-refs')
+        """
+        Location where tag names referenencing specific commits have been stored.
+        """
+
+        self.looseheadspath:str = os.path.join(self.gitpath,'refs','heads')
+
 
 GITBASE_REGISTRY:dict[str, _basestruct]  = {}
 
@@ -38,12 +51,17 @@ class GitBase:
     Base object for most major git objects in this package, provides convenience methods
     and directory pointers.
     """ 
-
+    
+    # place all references to gitbase fields specifically here
+    # the idea is to keep the same values from being stored many many times
     RepoPath:str = property( lambda self: self._dictptr.toplevelpath )   
     gitpath:str = property(lambda self: self._dictptr.gitpath)
     objectspath:str = property(lambda self: self._dictptr.objectspath)
     logpath:str = property( lambda self: self._dictptr.logpath)
     packpath:str = property( lambda self: self._dictptr.packpath)
+    loosetagspath:str = property( lambda self: self._dictptr.loosetagspath)
+    packedtagsfile:str = property( lambda self: self._dictptr.packedtagsfile)
+    looseheadspath:str = property( lambda self: self._dictptr.looseheadspath)
 
     def __init__(self, repopath:str):
 

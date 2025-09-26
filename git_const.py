@@ -4,7 +4,6 @@ class GitObjectType(Enum):
     COMMIT = 1 
     TREE = 2
     BLOB = 3
-    TAG = 4
     OFS_DELTA = 6
     REF_DELTA = 7   
 

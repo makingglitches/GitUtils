@@ -17,8 +17,7 @@ class GitLooseObjectTyper:
     objecttypes:dict[bytes,GitObjectType] = {
         b'blob':GitObjectType.BLOB,
         b'tree':GitObjectType.TREE,
-        b'commit':GitObjectType.COMMIT,
-        b'tag':GitObjectType.TAG
+        b'commit':GitObjectType.COMMIT,        
         }
     
     @staticmethod
@@ -69,7 +68,8 @@ class GitLooseObjectTyper:
         res = b''
 
         try:
-            while len(res) < 10:
+            frame = b'1'
+            while len(res) < 10 and len(frame) >0:
                 frame = f.read(100)
                 res += z.decompress(frame)
         

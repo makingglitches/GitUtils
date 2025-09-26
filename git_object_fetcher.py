@@ -18,7 +18,7 @@ class ObjectFetcher(GitBase):
 
     def GetObject(self,objectid: str | bytes)-> GitTree | GitCommit | \
                                            GitBlob | GitOFSDelta |\
-                                           GitRefsDelta | None:
+                                           GitRefsDelta | GitTag | None:
         res:FindObjectResult =  self.gio.findObject(objectid)
 
         if res.Found:

@@ -137,9 +137,10 @@ class GitPack(GitBase):
         self.idx = idx
         self.ObjectTypes: dict[str, tuple[bool,PackEntryHeader] ] = {}
         self.RepoSaveFile = os.path.join(SAVE_PATH, GitPack.idxSaveFile(idx))
-            
-        self.TempObjectTypes:dict[str,dict] = {}
+        self.ObjectsByType:dict[GitObjectType,list[bytes]] = {}
 
+        self.TempObjectTypes:dict[str,dict] = {}
+    
         if os.path.exists( self.RepoSaveFile):
 
             if refresh:
@@ -155,6 +156,16 @@ class GitPack(GitBase):
                 f.close()    
 
         self.GetObjectTypes()    
+
+        for objid in self.ObjectTypes:
+            entry = self.ObjectTypes[objid]
+            t = entry[1].Type
+
+            if t in self.ObjectsByType:
+                self.ObjectsByType[t].append(objid)
+            else:
+                self.ObjectsByType[t] = [objid]
+
 
     def GetObjectHeader(self,objectid:str)->tuple[bool,PackEntryHeader | None]:
 
