@@ -42,7 +42,7 @@ class GitTree(GitLocationBase):
         self.TreeItems:list[GitTree.GitTreeEntry] = treeitems      
 
 
-    def decodenext(self,buffer:bytes):
+    def decodenext(self,buffer:bytes)->tuple[GitTreeEntry,bytes]:
         
         i= buffer.index(" ".encode())
 
@@ -55,17 +55,23 @@ class GitTree(GitLocationBase):
 
         shabuff,buffer = self.chomp(buffer, 20)
 
-        return (GitTree.GitTreeEntry(mode,filename,shabuff.hex()),buffer)
+        fres = self.gio.findObject(shabuff)        
+
+        return (GitTree.GitTreeEntry(mode,
+                                     filename,
+                                     shabuff.hex(), 
+                                     fres.Type),
+                buffer)
 
 if __name__=="__main__":
     
     repopath = "~/Documents/placeflattener_git"
 
     g = GitHead(repopath)
-    gc = GitCommit.FromHead(g)
+    gc = GitCommit.FromHeadObject(g)
    
     gt =  GitTree(repopath,gc.commitTree)
 
-    print (gt.TreeFileLocation)
+    print (gt.ObjectLocation)
     
 

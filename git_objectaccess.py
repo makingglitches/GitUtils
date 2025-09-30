@@ -101,12 +101,12 @@ class GitObjectAccess(GitBase):
             
         return None
                  
-    def findObject(self,objectid:str)->FindObjectResult:
+    def findObject(self,objectid:str | bytes)->FindObjectResult:
         """
         Finds object location either in packfile or object tree
 
         Args:
-            objectid (str): the object id
+            objectid (str | bytes): the object id
 
         Returns:
             tuple[bool,GitIDX.IDXPos | str, GitObjectType] | None: Returns None if not found otherwise

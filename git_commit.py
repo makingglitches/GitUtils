@@ -65,9 +65,13 @@ class GitCommit(GitLocationBase):
 
         return lines[1:]
 
+    @staticmethod
+    def FromHeadCommit(repopath:str)->"GitCommit":
+        g = git_head.GitHead(repopath)
+        return GitCommit(g.RepoPath,g.commitptr)
 
     @staticmethod
-    def FromHead(repopath:str )->"GitCommit":
+    def FromHeadObject(gh:git_head.GitHead )->"GitCommit":
         """
         Parses commit from repo's current HEAD
 
@@ -76,9 +80,8 @@ class GitCommit(GitLocationBase):
 
         Returns:
             GitCommit: the HEAD commit
-        """
-        g = git_head.GitHead(repopath)
-        return GitCommit(g.RepoPath,g.commitptr)
+        """        
+        return GitCommit(gh.RepoPath,gh.commitptr)
     
 
 if __name__=="__main__":
@@ -89,7 +92,7 @@ if __name__=="__main__":
 
     c = GitCommit(repopath, g.commitptr)
 
-    c1 = GitCommit.FromHead(repopath)
+    c1 = GitCommit.FromHeadObject(g)
 
     objid = g.lastLogCommits()['previouscommit']
 
